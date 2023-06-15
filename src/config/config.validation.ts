@@ -6,6 +6,7 @@ export const configSchemaValidation: Joi.ObjectSchema = Joi.object({
     .valid(...Object.values(EConfigEnvironment))
     .required(),
   PORT: Joi.number().required(),
+  API_DOC_PATH: Joi.string().required(),
   DB_CONNECTION_URL: Joi.string().required(),
   SECURITY_JWT_SECRET: Joi.string().required(),
   SECURITY_PASSWORD_SALT_ROUND: Joi.string().required(),

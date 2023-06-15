@@ -8,6 +8,7 @@ import * as cors from 'cors';
 
 import { corseConfig, helmetConfig } from './main.config';
 import { ErrorsInterceptor } from './common/interceptors';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 class Application {
   public configService: ConfigService;
@@ -16,7 +17,7 @@ class Application {
   private app: INestApplication;
 
   constructor() {
-    this.loggerService = new LoggerService();
+    this.loggerService = new LoggerService('Dance API');
   }
 
   public async bootstrap(): Promise<void> {
@@ -28,7 +29,7 @@ class Application {
 
     const PORT = this.configService.get<number>('PORT') || 4200;
 
-    this.app.setGlobalPrefix('v1/api');
+    this.app.setGlobalPrefix('api');
 
     this.app.use(helmet(helmetConfig));
     this.app.use(cors(corseConfig));
@@ -41,12 +42,23 @@ class Application {
       new ValidationPipe({ transform: true, whitelist: true }),
     );
 
+    const document = SwaggerModule.createDocument(
+      this.app,
+      new DocumentBuilder().setTitle('Dance API').setVersion('1.0').build(),
+    );
+    SwaggerModule.setup(
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      this.configService.get('API_DOC_PATH')!,
+      this.app,
+      document,
+    );
+
     this.useListeners();
 
     this.app
       .listen(PORT)
       .then(() =>
-        this.loggerService.log(`Application was started on PORT: ${PORT}`),
+        this.loggerService.log(`Application was started on PORT ${PORT}`),
       )
       .catch((e) => this.loggerService.error(e));
   }
