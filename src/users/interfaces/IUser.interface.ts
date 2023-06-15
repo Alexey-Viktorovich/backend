@@ -1,7 +1,7 @@
 import { EUserRoles } from 'src/common/enums';
 
 export interface IUser {
-  _id: string;
+  id: string;
 
   name?: string | null;
 
