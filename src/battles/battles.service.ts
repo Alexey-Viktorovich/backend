@@ -14,6 +14,8 @@ export const enum Stage {
   FINAL = 'FINAL',
 }
 
+const DEFAULT_BATTLE_TIMER = 60; // 60 sec
+
 @Injectable()
 export class BattlesService {
   constructor(
@@ -29,11 +31,16 @@ export class BattlesService {
   }: ParticipantsDto): Promise<Event> {
     const eventEntity = new this.eventModel({
       name: 'Hip-Hop',
+      completedBattlesInStage: 0,
       currentStage: Stage.EIGHT,
     });
 
     const finalBattle = await new this.battleModel({
       stage: Stage.FINAL,
+      participant_1_total_score: 0,
+      participant_2_total_score: 0,
+      participant_1_timer: DEFAULT_BATTLE_TIMER,
+      participant_2_timer: DEFAULT_BATTLE_TIMER,
     }).save();
 
     eventEntity.battles.push(finalBattle);
@@ -75,8 +82,9 @@ export class BattlesService {
 
     const event: IEvent = {
       _id: eventEntity._id.toString(),
-      name: eventEntity?.name,
-      currentStage: eventEntity?.currentStage,
+      name: eventEntity.name,
+      currentStage: eventEntity.currentStage,
+      completedBattlesInStage: eventEntity.completedBattlesInStage,
       battles: [],
     };
 
@@ -103,6 +111,10 @@ export class BattlesService {
     return this.getBattle(battleEntity);
   }
 
+  public getParticipants(): Promise<IParticipant[]> {
+    return this.participantModel.find();
+  }
+
   public async getParticipantById(id: string): Promise<IParticipant> {
     const participantEntity = await this.participantModel.findById(id);
 
@@ -122,12 +134,11 @@ export class BattlesService {
     return this.getParticipantById(id);
   }
 
-  // To Do
-  // Method logic is not complete
   public async vote(
     battleId: string,
     participantId: string,
     votes: VoteDto,
+    judge_id: string,
   ): Promise<IBattle> {
     const battleEntity = await this.battleModel.findById(battleId);
 
@@ -135,27 +146,28 @@ export class BattlesService {
       throw new Error('battle not found');
     }
 
-    if (battleEntity.participant_1.toString() === participantId) {
-      const voteEntity = await new this.scoreModel({
-        ...votes,
-      }).save();
+    const judge = await this.userService.findOne(judge_id);
 
+    if (!judge) {
+      throw new Error('judge not found');
+    }
+
+    const voteEntity = await new this.scoreModel({
+      ...votes,
+      judge: judge.nickName,
+    }).save();
+
+    if (battleEntity.participant_1.toString() === participantId) {
       battleEntity.participant_1_total_score += votes.totalVotes();
       battleEntity.participant_1_score.push(voteEntity);
-
-      await battleEntity.save();
-    }
-
-    if (battleEntity.participant_2.toString() === participantId) {
-      const voteEntity = await new this.scoreModel({
-        ...votes,
-      }).save();
-
+    } else if (battleEntity.participant_2.toString() === participantId) {
       battleEntity.participant_2_total_score += votes.totalVotes();
       battleEntity.participant_2_score.push(voteEntity);
-
-      await battleEntity.save();
+    } else {
+      throw new Error('battle participant not found');
     }
+
+    await battleEntity.save();
 
     const judgeCount = await this.userService.getJudgeCount();
     // get winner
@@ -175,26 +187,52 @@ export class BattlesService {
         battleEntity.participant_2_total_score
       ) {
         winner = await this.participantModel.findById(
-          battleEntity.participant_1_total_score.toString(),
+          battleEntity.participant_1.toString(),
         );
       } else if (
         battleEntity.participant_2_total_score >
         battleEntity.participant_1_total_score
       ) {
         winner = await this.participantModel.findById(
-          battleEntity.participant_2_total_score.toString(),
+          battleEntity.participant_2.toString(),
         );
       } else {
         // There was a draw. No need to do anything
       }
 
       if (winner) {
-        const nextStage = this.getNextStage(battleEntity.stage as Stage);
+        const nextBattle = await this.battleModel.findById(
+          battleEntity.nextBattle?.toString(),
+        );
 
         // it was final battle
-        if (!nextStage) {
-          this.getBattleById(battleId);
+        if (!nextBattle) {
+          eventEntity.winner = winner._id;
+
+          await eventEntity.save();
+
+          return this.getBattleById(battleId);
         }
+
+        if (!nextBattle.participant_1) {
+          nextBattle.participant_1 = winner._id;
+        } else if (!nextBattle.participant_2) {
+          nextBattle.participant_2 = winner._id;
+        }
+
+        eventEntity.completedBattlesInStage += 1;
+
+        if (
+          eventEntity.completedBattlesInStage ===
+          this.getBattlesInStage(eventEntity.currentStage as Stage)
+        ) {
+          eventEntity.currentStage = this.getNextStage(
+            eventEntity.currentStage as Stage,
+          );
+        }
+
+        await nextBattle.save();
+        await eventEntity.save();
       }
     }
 
@@ -217,10 +255,14 @@ export class BattlesService {
       participant_1: await this.getParticipant(battleEntity.participant_1),
       participant_2: await this.getParticipant(battleEntity.participant_2),
       participant_1_score: await Promise.all(
-        battleEntity.participant_1_score.map(this.getParticipantScore),
+        battleEntity.participant_1_score.map(
+          this.getParticipantScore.bind(this),
+        ),
       ),
       participant_2_score: await Promise.all(
-        battleEntity.participant_2_score.map(this.getParticipantScore),
+        battleEntity.participant_2_score.map(
+          this.getParticipantScore.bind(this),
+        ),
       ),
     };
   }
@@ -281,6 +323,8 @@ export class BattlesService {
         participant_1_total_score: 0,
         participant_2_total_score: 0,
         nextBattle: nextBattles[index - 1],
+        participant_1_timer: DEFAULT_BATTLE_TIMER,
+        participant_2_timer: DEFAULT_BATTLE_TIMER,
       });
 
       const secondBattle = await new this.battleModel({
@@ -288,6 +332,8 @@ export class BattlesService {
         participant_1_total_score: 0,
         participant_2_total_score: 0,
         nextBattle: nextBattles[index - 1],
+        participant_1_timer: DEFAULT_BATTLE_TIMER,
+        participant_2_timer: DEFAULT_BATTLE_TIMER,
       });
 
       if (participants) {
@@ -342,29 +388,31 @@ export class BattlesService {
     return [firstParticipantEntity, secondParticipantEntity];
   }
 
-  private getNextStage(currentState: Stage): Stage | null {
+  private getBattlesInStage(currentState: Stage): number {
+    switch (currentState) {
+      case Stage.EIGHT:
+        return 8;
+      case Stage.FOUR:
+        return 4 + this.getBattlesInStage(Stage.EIGHT);
+      case Stage.SEMIFINAL:
+        return (
+          2 +
+          this.getBattlesInStage(Stage.FOUR) +
+          this.getBattlesInStage(Stage.EIGHT)
+        );
+    }
+
+    return 1;
+  }
+
+  private getNextStage(currentState: Stage): Stage {
     switch (currentState) {
       case Stage.EIGHT:
         return Stage.FOUR;
       case Stage.FOUR:
         return Stage.SEMIFINAL;
-      case Stage.SEMIFINAL:
+      default:
         return Stage.FINAL;
     }
-
-    return null;
   }
-
-  // private getPrevStage(currentState: Stage): Stage | null {
-  //   switch (currentState) {
-  //     case Stage.FINAL:
-  //       return Stage.SEMIFINAL;
-  //     case Stage.SEMIFINAL:
-  //       return Stage.FOUR;
-  //     case Stage.FOUR:
-  //       return Stage.EIGHT;
-  //   }
-
-  //   return null;
-  // }
 }

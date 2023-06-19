@@ -43,6 +43,12 @@ export class Battle {
   @Prop({ type: Types.ObjectId, ref: Participant.name })
   participant_2: Participant;
 
+  @Prop()
+  participant_1_timer: number;
+
+  @Prop()
+  participant_2_timer: number;
+
   @Prop({ type: [Types.ObjectId], ref: Score.name })
   participant_1_score: Score[];
 
@@ -65,6 +71,12 @@ export const BattleSchema = SchemaFactory.createForClass(Battle);
 export class Event {
   @Prop()
   name: string;
+
+  @Prop({ type: Types.ObjectId, ref: Participant.name })
+  winner?: Participant | null;
+
+  @Prop()
+  completedBattlesInStage: number;
 
   @Prop()
   currentStage: string;

@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
@@ -16,6 +17,7 @@ import { ParticipantsDto } from './dto';
 import { Event } from './battle.schema';
 import { IBattle, IEvent, IParticipant } from './interfaces';
 import { VoteDto } from './dto/Vote.dto';
+import { IRequestWithUser } from 'src/common/interfaces';
 
 @ApiTags('Battles')
 @Controller('battles')
@@ -39,6 +41,11 @@ export class BattlesController {
     return this.battlesService.getBattleById(id);
   }
 
+  @Get('participants')
+  public getParticipants(): Promise<IParticipant[]> {
+    return this.battlesService.getParticipants();
+  }
+
   @Get('participant/:id')
   public getParticipant(@Param('id') id: string): Promise<IParticipant> {
     return this.battlesService.getParticipantById(id);
@@ -52,14 +59,19 @@ export class BattlesController {
   }
 
   @Post('vote/:battleId/:participantId')
-  @Roles(EUserRoles.ADMIN, EUserRoles.JUDGE)
+  @Roles(EUserRoles.JUDGE)
   @UseGuards(JwtAuthGuard)
   public vote(
     @Param('battleId') battleId: string,
     @Param('participantId') participantId: string,
     @Body() data: VoteDto,
+    @Req() req: IRequestWithUser,
   ): Promise<IBattle> {
-    return this.battlesService.vote(battleId, participantId, data);
+    if (!req.user) {
+      throw new Error('user not found');
+    }
+
+    return this.battlesService.vote(battleId, participantId, data, req.user.id);
   }
 
   @Delete('all')

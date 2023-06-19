@@ -1,15 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsDefined, IsNumber, IsString } from 'class-validator';
+import { IsDefined, IsNumber } from 'class-validator';
 
 export class VoteDto {
-  @ApiProperty({
-    title: 'Judge nickName',
-    type: String,
-  })
-  @IsString()
-  @IsDefined()
-  judge: string;
-
   @ApiProperty({
     title: 'Filing vote',
     type: Number,
