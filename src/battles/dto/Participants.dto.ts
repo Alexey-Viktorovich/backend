@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsDefined, IsNotEmpty } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsDefined,
+  IsNotEmpty,
+} from 'class-validator';
 
 export class ParticipantsDto {
   @ApiProperty({
@@ -10,5 +16,7 @@ export class ParticipantsDto {
   @IsArray()
   @IsDefined()
   @IsNotEmpty()
+  @ArrayMinSize(16)
+  @ArrayMaxSize(16)
   public readonly participants: string[];
 }

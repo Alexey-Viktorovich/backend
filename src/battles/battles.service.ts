@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ParticipantsDto } from './dto';
+import { ParticipantsDto, ResetDto, WinnerDto } from './dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Battle, Event, Participant, Score } from './battle.schema';
 import { Model } from 'mongoose';
@@ -126,10 +126,19 @@ export class BattlesService {
   }
 
   public async activatePhoenixPower(id: string): Promise<IParticipant> {
-    await this.participantModel.findOneAndUpdate(
-      { _id: id },
-      { phoenix_power: false },
-    );
+    const participant = await this.participantModel.findById(id);
+
+    if (!participant) {
+      throw new Error('participant not found');
+    }
+
+    if (!participant.phoenix_power) {
+      throw new Error('phoenix power is already used by participant');
+    }
+
+    participant.phoenix_power = false;
+
+    await participant.save();
 
     return this.getParticipantById(id);
   }
@@ -152,15 +161,19 @@ export class BattlesService {
       throw new Error('judge not found');
     }
 
+    if (await this.is_voted(judge.nickName, battleId, participantId)) {
+      throw new Error('already voted');
+    }
+
     const voteEntity = await new this.scoreModel({
       ...votes,
       judge: judge.nickName,
     }).save();
 
-    if (battleEntity.participant_1.toString() === participantId) {
+    if (battleEntity.participant_1?.toString() === participantId) {
       battleEntity.participant_1_total_score += votes.totalVotes();
       battleEntity.participant_1_score.push(voteEntity);
-    } else if (battleEntity.participant_2.toString() === participantId) {
+    } else if (battleEntity.participant_2?.toString() === participantId) {
       battleEntity.participant_2_total_score += votes.totalVotes();
       battleEntity.participant_2_score.push(voteEntity);
     } else {
@@ -187,14 +200,14 @@ export class BattlesService {
         battleEntity.participant_2_total_score
       ) {
         winner = await this.participantModel.findById(
-          battleEntity.participant_1.toString(),
+          battleEntity.participant_1?.toString(),
         );
       } else if (
         battleEntity.participant_2_total_score >
         battleEntity.participant_1_total_score
       ) {
         winner = await this.participantModel.findById(
-          battleEntity.participant_2.toString(),
+          battleEntity.participant_2?.toString(),
         );
       } else {
         // There was a draw. No need to do anything
@@ -239,6 +252,143 @@ export class BattlesService {
     return this.getBattleById(battleId);
   }
 
+  public async setWinner(
+    battleId: string,
+    { participantId }: WinnerDto,
+  ): Promise<IBattle> {
+    const battle = await this.battleModel.findById(battleId);
+    const participant = await this.participantModel.findById(participantId);
+    const eventEntity = await this.eventModel.findOne();
+
+    if (!eventEntity) {
+      throw new Error('event not found');
+    }
+
+    if (!battle) {
+      throw new Error('battle not found');
+    }
+
+    if (!participant) {
+      throw new Error('participant not found');
+    }
+
+    if (battle.winner) {
+      throw new Error('battle already has a winner');
+    }
+
+    if (
+      battle.participant_1?.toString() !== participantId &&
+      battle.participant_2?.toString() !== participantId
+    ) {
+      throw new Error('wrong battle participant');
+    }
+
+    battle.winner = participant;
+
+    await battle.save();
+
+    const nextBattle = await this.battleModel.findById(
+      battle.nextBattle?.toString(),
+    );
+
+    // it was final battle
+    if (!nextBattle) {
+      eventEntity.winner = participant;
+
+      await eventEntity.save();
+
+      return this.getBattleById(battleId);
+    }
+
+    if (!nextBattle.participant_1) {
+      nextBattle.participant_1 = participant;
+    } else if (!nextBattle.participant_2) {
+      nextBattle.participant_2 = participant;
+    }
+
+    eventEntity.completedBattlesInStage += 1;
+
+    await nextBattle.save();
+    await eventEntity.save();
+
+    return this.getBattleById(battleId);
+  }
+
+  public async reset(battleId: string, times: ResetDto): Promise<IBattle> {
+    const battle = await this.battleModel.findById(battleId);
+
+    if (!battle) {
+      throw new Error('battle not found');
+    }
+
+    if (!battle.participant_1 || !battle.participant_2) {
+      throw new Error('battle is not full');
+    }
+
+    const eventEntity = await this.eventModel.findOne();
+
+    if (!eventEntity) {
+      throw new Error('event not found');
+    }
+
+    eventEntity.completedBattlesInStage -= 1;
+
+    await eventEntity.save();
+
+    battle.winner = undefined;
+
+    await Promise.all(
+      battle.participant_1_score.map(async (score) => {
+        return this.scoreModel.findByIdAndDelete(score.toString());
+      }),
+    );
+    battle.participant_1_score = [];
+    battle.participant_1_total_score = 0;
+    battle.participant_1_timer = times.participant_1_time;
+
+    await Promise.all(
+      battle.participant_2_score.map(async (score) => {
+        return this.scoreModel.findByIdAndDelete(score.toString());
+      }),
+    );
+    battle.participant_2_score = [];
+    battle.participant_2_total_score = 0;
+    battle.participant_2_timer = times.participant_2_time;
+
+    await battle.save();
+
+    if (battle.nextBattle) {
+      const nextBattle = await this.battleModel.findById(
+        battle.nextBattle.toString(),
+      );
+
+      if (!nextBattle) {
+        throw new Error('next battle not found');
+      }
+
+      const participant_1_id = nextBattle.participant_1?.toString();
+      const participant_2_id = nextBattle.participant_2?.toString();
+
+      if (
+        participant_1_id &&
+        (battle.participant_1.toString() == participant_1_id ||
+          battle.participant_2.toString() == participant_1_id)
+      ) {
+        nextBattle.participant_1 = undefined;
+      } else if (
+        participant_2_id &&
+        (battle.participant_1.toString() == participant_2_id ||
+          battle.participant_2.toString() == participant_2_id)
+      ) {
+        nextBattle.participant_2 = undefined;
+      }
+
+      await nextBattle.save();
+    }
+
+    return this.getBattleById(battleId);
+  }
+
   private async getBattle(battle: Battle): Promise<IBattle> {
     const battleEntity = await this.battleModel.findById(battle);
 
@@ -250,6 +400,9 @@ export class BattlesService {
       _id: battleEntity._id.toString(),
       stage: battleEntity.stage,
       nextBattle: battleEntity?.nextBattle?.toString(),
+      participant_1_timer: battleEntity.participant_1_timer,
+      participant_2_timer: battleEntity.participant_2_timer,
+      winner: await this.getParticipant(battleEntity.winner),
       participant_1_total_score: battleEntity.participant_1_total_score,
       participant_2_total_score: battleEntity.participant_2_total_score,
       participant_1: await this.getParticipant(battleEntity.participant_1),
@@ -268,7 +421,7 @@ export class BattlesService {
   }
 
   private async getParticipant(
-    participant: Participant,
+    participant?: Participant,
   ): Promise<IParticipant> {
     const participantEntity = await this.participantModel.findById(participant);
 
@@ -386,6 +539,48 @@ export class BattlesService {
     participants.splice(secondParticipantIndex, 1);
 
     return [firstParticipantEntity, secondParticipantEntity];
+  }
+
+  private async is_voted(
+    judge: string,
+    battle_id: string,
+    participant_id: string,
+  ): Promise<boolean> {
+    const battle = await this.battleModel.findById(battle_id);
+
+    if (!battle) {
+      throw new Error('battle not found');
+    }
+
+    if (battle.participant_1?.toString() === participant_id) {
+      const scoreIds = battle.participant_1_score?.map((score) =>
+        score.toString(),
+      );
+
+      if (!scoreIds) return false;
+
+      for (let i = 0; i < scoreIds.length || 0; i++) {
+        const scoreId = scoreIds[i];
+        const score = await this.scoreModel.findById(scoreId);
+
+        if (score?.judge === judge) return true;
+      }
+    } else if (battle.participant_2?.toString() === participant_id) {
+      const scoreIds = battle.participant_2_score?.map((score) =>
+        score.toString(),
+      );
+
+      if (!scoreIds) return false;
+
+      for (let i = 0; i < scoreIds.length || 0; i++) {
+        const scoreId = scoreIds[i];
+        const score = await this.scoreModel.findById(scoreId);
+
+        if (score?.judge === judge) return true;
+      }
+    }
+
+    return false;
   }
 
   private getBattlesInStage(currentState: Stage): number {

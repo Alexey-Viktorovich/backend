@@ -38,10 +38,13 @@ export class Battle {
   stage: string;
 
   @Prop({ type: Types.ObjectId, ref: Participant.name })
-  participant_1: Participant;
+  winner?: Participant;
 
   @Prop({ type: Types.ObjectId, ref: Participant.name })
-  participant_2: Participant;
+  participant_1?: Participant;
+
+  @Prop({ type: Types.ObjectId, ref: Participant.name })
+  participant_2?: Participant;
 
   @Prop()
   participant_1_timer: number;

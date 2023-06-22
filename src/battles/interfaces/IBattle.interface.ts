@@ -6,6 +6,8 @@ export interface IBattle {
 
   stage?: string;
 
+  winner?: IParticipant;
+
   participant_1?: IParticipant;
 
   participant_2?: IParticipant;

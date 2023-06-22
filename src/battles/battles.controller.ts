@@ -13,7 +13,7 @@ import { BattlesService } from './battles.service';
 import { Roles } from 'src/common/decorators';
 import { EUserRoles } from 'src/common/enums';
 import { JwtAuthGuard } from 'src/common/guards';
-import { ParticipantsDto } from './dto';
+import { ParticipantsDto, ResetDto, WinnerDto } from './dto';
 import { Event } from './battle.schema';
 import { IBattle, IEvent, IParticipant } from './interfaces';
 import { VoteDto } from './dto/Vote.dto';
@@ -51,6 +51,16 @@ export class BattlesController {
     return this.battlesService.getParticipantById(id);
   }
 
+  @Post('reset/:battleId')
+  @Roles(EUserRoles.ADMIN)
+  @UseGuards(JwtAuthGuard)
+  public reset(
+    @Body() data: ResetDto,
+    @Param('battleId') battleId: string,
+  ): Promise<IBattle> {
+    return this.battlesService.reset(battleId, data);
+  }
+
   @Post('activatePhoenix/:id')
   @Roles(EUserRoles.ADMIN)
   @UseGuards(JwtAuthGuard)
@@ -72,6 +82,16 @@ export class BattlesController {
     }
 
     return this.battlesService.vote(battleId, participantId, data, req.user.id);
+  }
+
+  @Post('setWinner/:battleId')
+  @Roles(EUserRoles.ADMIN)
+  @UseGuards(JwtAuthGuard)
+  public setWinner(
+    @Param('battleId') battleId: string,
+    @Body() data: WinnerDto,
+  ): Promise<IBattle> {
+    return this.battlesService.setWinner(battleId, data);
   }
 
   @Delete('all')
