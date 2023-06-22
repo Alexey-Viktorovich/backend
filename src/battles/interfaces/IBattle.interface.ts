@@ -8,6 +8,10 @@ export interface IBattle {
 
   winner?: IParticipant;
 
+  participant_1_timer: number;
+
+  participant_2_timer: number;
+
   participant_1?: IParticipant;
 
   participant_2?: IParticipant;
