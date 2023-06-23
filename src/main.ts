@@ -5,10 +5,12 @@ import { ConfigService } from '@nestjs/config';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import * as cors from 'cors';
+import * as basicAuth from 'express-basic-auth';
 
 import { corseConfig, helmetConfig } from './main.config';
 import { ErrorsInterceptor } from './common/interceptors';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { EConfigEnvironment } from './common/enums';
 
 class Application {
   public configService: ConfigService;
@@ -27,12 +29,33 @@ class Application {
 
     this.configService = this.app.get(ConfigService);
 
+    const nodeEnv = this.configService.get<EConfigEnvironment>('NODE_ENV');
     const PORT = this.configService.get<number>('PORT') || 4200;
 
     this.app.setGlobalPrefix('api');
 
     this.app.use(helmet(helmetConfig));
     this.app.use(cors(corseConfig));
+
+    if (nodeEnv === EConfigEnvironment.production) {
+      const swaggerUser = this.configService.get<string>('SWAGGER_USR');
+      const swaggerPassword =
+        this.configService.get<string>('SWAGGER_PASSWORD');
+
+      if (!swaggerUser || !swaggerPassword) {
+        throw new Error('Swagger credentials is required for production mode');
+      }
+
+      this.app.use(
+        ['/api/docs', '/api/docs-json'],
+        basicAuth({
+          challenge: true,
+          users: {
+            [swaggerUser]: swaggerPassword,
+          },
+        }),
+      );
+    }
 
     this.app.useGlobalInterceptors(
       new ErrorsInterceptor(this.loggerService, this.configService),
