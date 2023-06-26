@@ -57,4 +57,11 @@ export class UsersController {
   public getUser(@Param('id') id: string): Promise<IUserOutputModel | null> {
     return this.userService.findOne(id);
   }
+
+  @Get('role/:roleId')
+  public getUsersByRole(
+    @Param('roleId') roleId: EUserRoles,
+  ): Promise<IUserOutputModel[]> {
+    return this.userService.findMany(roleId);
+  }
 }

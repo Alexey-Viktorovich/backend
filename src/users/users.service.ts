@@ -47,6 +47,21 @@ export class UsersService {
       : null;
   }
 
+  public async findMany(roleId: EUserRoles): Promise<IUserOutputModel[]> {
+    return (
+      await this.userModel.find({
+        role: {
+          $regex: new RegExp('^' + roleId.toLowerCase(), 'i'),
+        },
+      })
+    ).map((user) => ({
+      role: user.role,
+      name: user.name,
+      id: user._id.toString(),
+      nickName: user.nickName,
+    }));
+  }
+
   public async login(
     nickName: string,
     password: string,
