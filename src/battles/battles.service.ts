@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { ParticipantsDto, ResetDto, WinnerDto } from './dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Battle, Event, Participant, Score } from './battle.schema';
@@ -29,6 +29,12 @@ export class BattlesService {
   public async registerParticipants({
     participants,
   }: ParticipantsDto): Promise<Event> {
+    const eventsLength = await this.eventModel.count();
+
+    if (eventsLength) {
+      throw new ForbiddenException();
+    }
+
     const eventEntity = new this.eventModel({
       name: 'Hip-Hop',
       completedBattlesInStage: 0,
