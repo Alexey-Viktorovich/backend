@@ -461,6 +461,7 @@ export class BattlesService {
   }
 
   public async deleteAll(): Promise<boolean> {
+    await this.scoreModel.deleteMany();
     await this.eventModel.deleteMany();
     await this.battleModel.deleteMany();
     await this.participantModel.deleteMany();
