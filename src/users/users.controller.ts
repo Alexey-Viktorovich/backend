@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -15,6 +16,7 @@ import { JwtAuthGuard } from 'src/common/guards';
 import { Roles } from 'src/common/decorators';
 import { EUserRoles } from 'src/common/enums';
 import { IRequestWithUser } from 'src/common/interfaces';
+import { RemoveItSelfError } from './errors';
 
 @ApiTags('Users')
 @Controller('users')
@@ -51,6 +53,20 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   public createScreen(@Body() body: UserDto): Promise<string> {
     return this.userService.createUser(body, EUserRoles.SCREEN);
+  }
+
+  @Delete(':userId')
+  @Roles(EUserRoles.ADMIN)
+  @UseGuards(JwtAuthGuard)
+  public removeUser(
+    @Param('userId') userId: string,
+    @Req() req: IRequestWithUser,
+  ): Promise<boolean> {
+    if (userId === req.user?.id) {
+      throw new RemoveItSelfError();
+    }
+
+    return this.userService.remove(userId);
   }
 
   @Get(':id')

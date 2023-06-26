@@ -89,4 +89,13 @@ export class UsersService {
   public async getJudgeCount(): Promise<number> {
     return this.userModel.find({ role: EUserRoles.JUDGE }).count();
   }
+
+  public async remove(userId: string): Promise<boolean> {
+    try {
+      await this.userModel.findByIdAndDelete(userId);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
 }
