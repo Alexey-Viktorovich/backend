@@ -61,11 +61,11 @@ export class BattlesController {
     return this.battlesService.reset(battleId, data);
   }
 
-  @Post('activatePhoenix/:id')
+  @Post('phoenixPower/:id')
   @Roles(EUserRoles.ADMIN)
   @UseGuards(JwtAuthGuard)
   public activatePhoenixPower(@Param('id') id: string): Promise<IParticipant> {
-    return this.battlesService.activatePhoenixPower(id);
+    return this.battlesService.phoenixPower(id);
   }
 
   @Post('vote/:battleId/:participantId')

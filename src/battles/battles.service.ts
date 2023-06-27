@@ -131,18 +131,14 @@ export class BattlesService {
     return this.getParticipant(participantEntity);
   }
 
-  public async activatePhoenixPower(id: string): Promise<IParticipant> {
+  public async phoenixPower(id: string): Promise<IParticipant> {
     const participant = await this.participantModel.findById(id);
 
     if (!participant) {
       throw new Error('participant not found');
     }
 
-    if (!participant.phoenix_power) {
-      throw new Error('phoenix power is already used by participant');
-    }
-
-    participant.phoenix_power = false;
+    participant.phoenix_power = !participant.phoenix_power;
 
     await participant.save();
 
