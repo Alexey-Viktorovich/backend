@@ -86,21 +86,99 @@ export class BattlesService {
       throw new Error('event not found');
     }
 
-    const event: IEvent = {
+    const scoreEntities = await this.scoreModel.find();
+    const battleEntities = await this.battleModel.find();
+    const participantEntities = await this.participantModel.find();
+
+    const battles = battleEntities.map((battleEntity): IBattle => {
+      const winner = battleEntity.winner
+        ? participantEntities
+            .filter(
+              (participant) =>
+                participant.id === battleEntity.winner?.toString(),
+            )
+            .map((participant) => ({
+              _id: participant?._id.toString(),
+              nickName: participant?.nickName,
+              phoenix_power: participant?.phoenix_power,
+            }))[0]
+        : {};
+
+      const participant_1 = participantEntities
+        .filter(
+          (participant) =>
+            participant.id === battleEntity.participant_1?.toString(),
+        )
+        .map((participant) => ({
+          _id: participant?._id.toString(),
+          nickName: participant?.nickName,
+          phoenix_power: participant?.phoenix_power,
+        }))[0];
+
+      const participant_2 = participantEntities
+        .filter(
+          (participant) =>
+            participant.id === battleEntity.participant_2?.toString(),
+        )
+        .map((participant) => ({
+          _id: participant?._id.toString(),
+          nickName: participant?.nickName,
+          phoenix_power: participant?.phoenix_power,
+        }))[0];
+
+      const participant_1_score = scoreEntities
+        .filter((score) =>
+          battleEntity.participant_1_score
+            .map((id) => id.toString())
+            .indexOf(score._id.toString()),
+        )
+        .map((score) => ({
+          _id: score?._id?.toString(),
+          judge: score?.judge,
+          filing: score?.filing,
+          technique: score?.technique,
+          musicality: score?.musicality,
+          originality: score?.originality,
+        }));
+
+      const participant_2_score = scoreEntities
+        .filter((score) =>
+          battleEntity.participant_2_score
+            .map((id) => id.toString())
+            .indexOf(score._id.toString()),
+        )
+        .map((score) => ({
+          _id: score?._id?.toString(),
+          judge: score?.judge,
+          filing: score?.filing,
+          technique: score?.technique,
+          musicality: score?.musicality,
+          originality: score?.originality,
+        }));
+
+      return {
+        _id: battleEntity._id.toString(),
+        stage: battleEntity.stage,
+        nextBattle: battleEntity?.nextBattle?.toString(),
+        winner,
+        participant_1_timer: battleEntity.participant_1_timer,
+        participant_2_timer: battleEntity.participant_2_timer,
+        participant_1_total_score: battleEntity.participant_1_total_score,
+        participant_2_total_score: battleEntity.participant_2_total_score,
+        participant_1,
+        participant_2,
+        participant_1_score,
+        participant_2_score,
+      };
+    });
+
+    return {
       _id: eventEntity._id.toString(),
       name: eventEntity.name,
       currentStage: eventEntity.currentStage,
       completedBattlesInStage: eventEntity.completedBattlesInStage,
-      battles: [],
+      battles,
     };
-
-    for (let i = 0; i < eventEntity.battles.length; i++) {
-      const battleId = eventEntity.battles[i];
-
-      event.battles.push(await this.getBattle(battleId));
-    }
-
-    return event;
   }
 
   private getRandomArbitrary(max: number): number {
