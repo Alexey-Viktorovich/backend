@@ -31,6 +31,7 @@ export class UsersController {
   }
 
   @Post('admin')
+  //закоментувати 34-35 для розробки
   @Roles(EUserRoles.ADMIN)
   @UseGuards(JwtAuthGuard)
   public createAdmin(@Body() body: UserDto): Promise<string> {
